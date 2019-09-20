@@ -2,7 +2,8 @@ import pandas as pd
 
 import json
 from urllib.request import urlopen
-
+import geopy
+from geopy.geocoders import Nominatim
 
 class Aggregator:
     column_mapping = {
@@ -116,6 +117,8 @@ class Aggregator:
                   'martin': (49.062022, 18.916186),
                   'malacky': (48.436255, 17.014930), 'hlohovec': (48.425591, 17.803041)}
 
+    geopy.geocoders.options.default_timeout = 3
+
     def just_read(self, files):
         records = []
         data_files = files.split(", ")
@@ -124,7 +127,27 @@ class Aggregator:
 
         records_with_lat_lon = pd.DataFrame(records)
         all_cities = set(value.lower() for value in records_with_lat_lon.loc[records_with_lat_lon['position_flag'] == 'city_center']['address'].values)
-        print(all_cities)
+        gps_codes = []
+        print(len(all_cities))
+        for city in all_cities:
+            if city not in self.stored_gps:
+                geocoder = Nominatim()
+                location = geocoder.geocode(city)
+                if location:
+                    gps_code = (city, location.latitude, location.longitude)
+                    gps_codes.append(gps_code)
+                    self.stored_gps[city] = (gps_code[1], gps_code[2])
+                else:
+                    gps_code = (city, 0.0, 0.0)
+                    gps_codes.append(gps_code)
+                    self.stored_gps[city] = (gps_code[1], gps_code[2])
+            else:
+                gps_code = (city, self.stored_gps[city][0], self.stored_gps[city][0])
+                gps_codes.append(gps_code)
+
+        gps_df = pd.DataFrame(gps_codes, columns=['city', 'latitude', 'longitude'])
+        with open('gps.csv', 'w', encoding='utf-8') as gps_file:
+            gps_df.to_csv(gps_file)
 
         result = records_with_lat_lon.to_dict(orient='records')
         return result
