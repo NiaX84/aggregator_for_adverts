@@ -117,9 +117,28 @@ class Aggregator:
                   'martin': (49.062022, 18.916186),
                   'malacky': (48.436255, 17.014930), 'hlohovec': (48.425591, 17.803041)}
 
-    geopy.geocoders.options.default_timeout = 3
-
     def just_read(self, files):
+
+        def get_latitude(city):
+            geocoder = Nominatim()
+            try:
+                location = geocoder.geocode(city)
+                if location:
+                    return location.latitude
+                return None
+            except:
+                return None
+
+        def get_longitude(city):
+            geocoder = Nominatim()
+            try:
+                location = geocoder.geocode(city)
+                if location:
+                    return location.longitude
+                return None
+            except:
+                return None
+
         records = []
         data_files = files.split(", ")
         for file in data_files:
@@ -127,27 +146,29 @@ class Aggregator:
 
         records_with_lat_lon = pd.DataFrame(records)
         all_cities = set(value.lower() for value in records_with_lat_lon.loc[records_with_lat_lon['position_flag'] == 'city_center']['address'].values)
-        gps_codes = []
-        print(len(all_cities))
-        for city in all_cities:
-            if city not in self.stored_gps:
-                geocoder = Nominatim()
-                location = geocoder.geocode(city)
-                if location:
-                    gps_code = (city, location.latitude, location.longitude)
-                    gps_codes.append(gps_code)
-                    self.stored_gps[city] = (gps_code[1], gps_code[2])
-                else:
-                    gps_code = (city, 0.0, 0.0)
-                    gps_codes.append(gps_code)
-                    self.stored_gps[city] = (gps_code[1], gps_code[2])
-            else:
-                gps_code = (city, self.stored_gps[city][0], self.stored_gps[city][0])
-                gps_codes.append(gps_code)
+        cities_to_be_filled = all_cities-set(self.stored_gps.keys())
+        gps_code_df = pd.DataFrame(cities_to_be_filled, columns=['city'])
+        gps_code_df['latitude'] = gps_code_df['city'].apply(get_latitude)
+        gps_code_df['longitude'] = gps_code_df['city'].apply(get_longitude)
+        # for city in all_cities:
+        #     if city not in self.stored_gps:
+        #         geocoder = Nominatim()
+        #         location = geocoder.geocode(city)
+        #         if location:
+        #             gps_code = (city, location.latitude, location.longitude)
+        #             gps_codes.append(gps_code)
+        #             self.stored_gps[city] = (gps_code[1], gps_code[2])
+        #         else:
+        #             gps_code = (city, 0.0, 0.0)
+        #             gps_codes.append(gps_code)
+        #             self.stored_gps[city] = (gps_code[1], gps_code[2])
+        #     else:
+        #         gps_code = (city, self.stored_gps[city][0], self.stored_gps[city][0])
+        #         gps_codes.append(gps_code)
 
-        gps_df = pd.DataFrame(gps_codes, columns=['city', 'latitude', 'longitude'])
+        # gps_df = pd.DataFrame(gps_codes, columns=['city', 'latitude', 'longitude'])
         with open('gps.csv', 'w', encoding='utf-8') as gps_file:
-            gps_df.to_csv(gps_file)
+            gps_code_df.to_csv(gps_file)
 
         result = records_with_lat_lon.to_dict(orient='records')
         return result
