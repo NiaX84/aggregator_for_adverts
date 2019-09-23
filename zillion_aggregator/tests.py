@@ -32,7 +32,7 @@ class ReadJsonFileTest(TestCase):
             json.dump(result, json_file, ensure_ascii=False, indent=4)
 
     def test_read_json_files_from_web_missing_values_csv_output(self):
-        response = self.client.post(reverse('zillion_aggregator:read_json_no_grouping'), {'files': "https://api.apify.com/v2/datasets/2WXL6WTm2JLnja9u6/items?format=json&clean=1&attachment=1"})
+        response = self.client.post(reverse('zillion_aggregator:read_json_no_grouping'), {'files': self.json_files_string})
         self.assertEqual(response.status_code, 200)
         result = json.loads(response.content, encoding='utf-8')
         with open('records.csv', 'w', encoding='utf-8') as csv_file:
