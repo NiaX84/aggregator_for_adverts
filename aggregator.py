@@ -39,7 +39,7 @@ class Aggregator:
         'stav nehnuteľnosti': 'stav'
     }
 
-    grouping_keys = {'price', 'sellerName', 'sellerWeb', 'address', 'offerType', 'type', 'currency'}
+    grouping_keys = {'price', 'sellerName', 'sellerWeb', 'address', 'offerType', 'type', 'currency', 'latitude', 'longitude'}
     sub_group_keys = {'ID', 'dateCreated', 'title', 'description', 'priceType', 'url', 'subType', 'images',
                       'cityAddress', 'state', 'celková podlahová plocha', 'stav'}
 
@@ -148,12 +148,33 @@ class Aggregator:
         return result
 
     def aggregate(self, files):
+        gps_coords = pd.read_pickle('gps.pkl').to_dict(orient='records')
+
+        def extract_latitude(address):
+            if not address:
+                return None
+            row = [record['lat'] for record in gps_coords if record['city'] == address.lower()]
+            if not row:
+                return None
+            return row[0]
+
+        def extract_longitude(address):
+            if not address:
+                return None
+            row = [record['lon'] for record in gps_coords if record['city'] == address.lower()]
+            if not row:
+                return None
+            return row[0]
+
         records = []
         data_files = files.split(", ")
         for file in data_files:
             records.extend(self.load_all_records(file))
 
-        result = pd.DataFrame(records) \
+        records_df = pd.DataFrame(records)
+        records_df['latitude'] = records_df['address'].apply(extract_latitude)
+        records_df['longitude'] = records_df['address'].apply(extract_longitude)
+        result = records_df \
             .groupby(list(self.grouping_keys), as_index=False) \
             .apply(lambda x: x[list(self.sub_group_keys)].to_dict('r')) \
             .reset_index().rename(columns={0: 'details'}) \
