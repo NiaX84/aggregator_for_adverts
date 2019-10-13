@@ -3,8 +3,11 @@ import pandas as pd
 import json
 from urllib.request import urlopen
 
+import requests
+
 
 class Aggregator:
+    mapbox_access_token = "pk.eyJ1IjoibmlheDg0IiwiYSI6ImNrMXAwNnYzcjBubGEzbms2dXQ3bmN3cTEifQ.uNKwpimGXu9vvzlDLFdEQg"
     column_mapping = {
         'sellerWeb': 'sellerWeb',
         'sellerName': 'sellerName',
@@ -36,30 +39,26 @@ class Aggregator:
         'stav nehnuteľnosti': 'stav'
     }
 
-    grouping_keys = {'price', 'sellerName', 'sellerWeb', 'address', 'offerType', 'type', 'currency', 'latitude', 'longitude'}
+    grouping_keys = {'price', 'sellerName', 'sellerWeb', 'address', 'offerType', 'type', 'currency', 'address_lower'}
     sub_group_keys = {'ID', 'dateCreated', 'title', 'description', 'priceType', 'url', 'subType', 'images',
                       'cityAddress', 'state', 'celková podlahová plocha', 'stav'}
 
-    all_record_keys = grouping_keys.union(sub_group_keys)
+    all_record_keys = {'price', 'sellerName', 'sellerWeb', 'address', 'offerType', 'type', 'currency', 'ID', 'dateCreated', 'title', 'description', 'priceType', 'url', 'subType', 'images',
+                      'cityAddress', 'state', 'celková podlahová plocha', 'stav'}
 
     def aggregate(self, files):
-        gps_coords = pd.read_pickle('gps.pkl').to_dict(orient='records')
 
-        def extract_latitude(address):
-            if not address:
-                return None
-            row = [record['lat'] for record in gps_coords if record['city'] == address.lower()]
-            if not row:
-                return None
-            return row[0]
-
-        def extract_longitude(address):
-            if not address:
-                return None
-            row = [record['lon'] for record in gps_coords if record['city'] == address.lower()]
-            if not row:
-                return None
-            return row[0]
+        def get_gps_coords():
+            result_gps = []
+            for address in addresses:
+                url = "https://api.mapbox.com/geocoding/v5/mapbox.places/{0}.json?types=place&access_token={1}" \
+                    .format(address, self.mapbox_access_token)
+                try:
+                    gps = json.loads(requests.get(url).text)["features"][0]["center"]
+                except KeyError:
+                    gps = [None, None]
+                result_gps.append({"address_lower": address, "lat": gps[0], "lon": gps[1]})
+            return result_gps
 
         records = []
         data_files = files.split(", ")
@@ -67,12 +66,13 @@ class Aggregator:
             records.extend(self.load_all_records(file))
 
         records_df = pd.DataFrame(records)
-        records_df['latitude'] = records_df['address'].apply(extract_latitude)
-        records_df['longitude'] = records_df['address'].apply(extract_longitude)
+        addresses = set(value.lower() for value in records_df[records_df["position_flag"] == "city_center"]['address'].values)
+        coords = pd.DataFrame(get_gps_coords())
         result = records_df \
             .groupby(list(self.grouping_keys), as_index=False) \
             .apply(lambda x: x[list(self.sub_group_keys)].to_dict('r')) \
             .reset_index().rename(columns={0: 'details'}) \
+            .merge(coords, on='address_lower', how='left') \
             .to_dict(orient='records')
         return result
 
@@ -103,7 +103,8 @@ class Aggregator:
             entry.update({'state': 'unknown'})
             entry_keys = {key for key in entry}
             entry.update({key: 'default' for key in cls.all_record_keys - entry_keys})
-            entry.update(cls.calculate_position(entry))
+            position_dict = cls.calculate_position(entry)
+            entry.update(position_dict)
         return data_record
 
     @classmethod
@@ -113,7 +114,7 @@ class Aggregator:
         if ',' in entry['address']:
             return {'position_flag': 'exact'}
         else:
-            return {'position_flag': 'city_center'}
+            return {'position_flag': 'city_center', 'address_lower': entry["address"].lower()}
 
     @classmethod
     def get_property_values(cls, properties_data):
