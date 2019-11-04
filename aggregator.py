@@ -36,30 +36,33 @@ class Aggregator:
         'stav nehnuteľnosti': 'stav'
     }
 
-    grouping_keys = {'price', 'sellerName', 'sellerWeb', 'address', 'offerType', 'type', 'currency', 'latitude', 'longitude'}
+    grouping_keys = {'price', 'sellerName', 'sellerWeb', 'address', 'offerType', 'type', 'currency'}
     sub_group_keys = {'ID', 'dateCreated', 'title', 'description', 'priceType', 'url', 'subType', 'images',
                       'cityAddress', 'state', 'celková podlahová plocha', 'stav'}
 
     all_record_keys = grouping_keys.union(sub_group_keys)
 
+    unwanted_words = ['Štát:', 'Mesto:', 'Lokalita:', 'Ulica:']
+    unwanted_words2 = ['Štát', 'Mesto', 'Lokalita', 'Ulica']
+
     def aggregate(self, files):
-        gps_coords = pd.read_pickle('gps.pkl').to_dict(orient='records')
-
-        def extract_latitude(address):
-            if not address:
-                return None
-            row = [record['lat'] for record in gps_coords if record['city'] == address.lower()]
-            if not row:
-                return None
-            return row[0]
-
-        def extract_longitude(address):
-            if not address:
-                return None
-            row = [record['lon'] for record in gps_coords if record['city'] == address.lower()]
-            if not row:
-                return None
-            return row[0]
+        # gps_coords = pd.read_pickle('gps.pkl').to_dict(orient='records')
+        #
+        # def extract_latitude(address):
+        #     if not address:
+        #         return None
+        #     row = [record['lat'] for record in gps_coords if record['city'] == address.lower()]
+        #     if not row:
+        #         return None
+        #     return row[0]
+        #
+        # def extract_longitude(address):
+        #     if not address:
+        #         return None
+        #     row = [record['lon'] for record in gps_coords if record['city'] == address.lower()]
+        #     if not row:
+        #         return None
+        #     return row[0]
 
         records = []
         data_files = files.split(", ")
@@ -67,8 +70,8 @@ class Aggregator:
             records.extend(self.load_all_records(file))
 
         records_df = pd.DataFrame(records)
-        records_df['latitude'] = records_df['address'].apply(extract_latitude)
-        records_df['longitude'] = records_df['address'].apply(extract_longitude)
+        # records_df['latitude'] = records_df['address'].apply(extract_latitude)
+        # records_df['longitude'] = records_df['address'].apply(extract_longitude)
         result = records_df \
             .groupby(list(self.grouping_keys), as_index=False) \
             .apply(lambda x: x[list(self.sub_group_keys)].to_dict('r')) \
@@ -90,30 +93,16 @@ class Aggregator:
     def collect_records(cls, f):
         data_record = json.loads(f.read().decode())
         for entry in data_record:
-            if 'properties' not in entry:
-                entry.update({'state': 'unknown'})
-                entry_keys = {key for key in entry}
-                entry.update({key: 'default' for key in cls.all_record_keys - entry_keys})
-                entry.update(cls.calculate_position(entry))
-                continue
-            properties = entry['properties']
-            del entry['properties']
-            properties_data = [data for data in properties if data['name']]
-            entry.update(Aggregator.get_property_values(properties_data))
-            entry.update({'state': 'unknown'})
+            if 'properties' in entry:
+                properties = entry['properties']
+                del entry['properties']
+                properties_data = [data for data in properties if data['name']]
+                entry.update(Aggregator.get_property_values(properties_data))
+            entry.update(cls.get_address_specification(entry))
             entry_keys = {key for key in entry}
             entry.update({key: 'default' for key in cls.all_record_keys - entry_keys})
-            entry.update(cls.calculate_position(entry))
-        return data_record
 
-    @classmethod
-    def calculate_position(cls, entry):
-        if entry['address'] is None or entry['address'] == 'default' or entry['address'] == "Zahraničie":
-            return {'position_flag': 'unknown'}
-        if ',' in entry['address']:
-            return {'position_flag': 'exact'}
-        else:
-            return {'position_flag': 'city_center'}
+        return data_record
 
     @classmethod
     def get_property_values(cls, properties_data):
@@ -126,3 +115,28 @@ class Aggregator:
             except KeyError:
                 continue
         return result
+
+    @classmethod
+    def get_address_specification(cls, entry):
+        try:
+            address = entry['address']
+            if not address:
+                address_tmp = [value for _, value in entry['sellerAddress'].items() if value]
+                address = ', '.join(address_tmp) if address_tmp else 'Slovensko'
+            if any(word in cls.unwanted_words for word in address.split()):
+                address = address.replace(' - ', '-') \
+                    .replace("Štát: ", ":") \
+                    .replace("Mesto: ", ":") \
+                    .replace("Lokalita: ", ":") \
+                    .replace("Ulica: ", ":")
+                address = address.split(":")
+                address = ', '.join(word for word in address if word not in cls.unwanted_words2)
+            if '(' in address or ")" in address:
+                address = address.replace('(', ', ').replace(')', '')
+            return {'address': address}
+        except KeyError:
+            try:
+                address = entry['city']
+                return {'address': address}
+            except KeyError:
+                return {'address': 'Slovensko'}

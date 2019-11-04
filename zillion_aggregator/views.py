@@ -2,16 +2,7 @@ import pickle
 
 from django.http import JsonResponse
 
-from zillion_aggregator.address_reader import AddressReader
-
 pickled_module = 'zillion_aggregator/aggregator_model/aggregator.pk'
-
-
-def read_addresses(request):
-    file_paths = request.POST.get('files')
-    data = AddressReader().read_address(file_paths)
-    return JsonResponse(data, safe=False)
-
 
 def read_json(request):
     file_paths = request.POST.get('files')
