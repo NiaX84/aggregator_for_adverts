@@ -46,23 +46,6 @@ class Aggregator:
     unwanted_words2 = ['Štát', 'Mesto', 'Lokalita', 'Ulica']
 
     def aggregate(self, files):
-        # gps_coords = pd.read_pickle('gps.pkl').to_dict(orient='records')
-        #
-        # def extract_latitude(address):
-        #     if not address:
-        #         return None
-        #     row = [record['lat'] for record in gps_coords if record['city'] == address.lower()]
-        #     if not row:
-        #         return None
-        #     return row[0]
-        #
-        # def extract_longitude(address):
-        #     if not address:
-        #         return None
-        #     row = [record['lon'] for record in gps_coords if record['city'] == address.lower()]
-        #     if not row:
-        #         return None
-        #     return row[0]
 
         records = []
         data_files = files.split(", ")
@@ -70,8 +53,6 @@ class Aggregator:
             records.extend(self.load_all_records(file))
 
         records_df = pd.DataFrame(records)
-        # records_df['latitude'] = records_df['address'].apply(extract_latitude)
-        # records_df['longitude'] = records_df['address'].apply(extract_longitude)
         result = records_df \
             .groupby(list(self.grouping_keys), as_index=False) \
             .apply(lambda x: x[list(self.sub_group_keys)].to_dict('r')) \
