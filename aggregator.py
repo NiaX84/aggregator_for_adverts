@@ -33,6 +33,7 @@ class Aggregator:
         'celková podlah.plocha': 'celková podlahová plocha',
         'celková podlahová plocha bytu': 'celková podlahová plocha',
         'stav': 'stav',
+        'Stav': 'stav',
         'stav nehnuteľnosti': 'stav'
     }
 
