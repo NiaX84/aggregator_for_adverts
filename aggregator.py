@@ -36,11 +36,13 @@ class Aggregator:
         'stav nehnuteľnosti': 'stav'
     }
 
-    grouping_keys = {'price', 'sellerName', 'sellerWeb', 'address', 'offerType', 'type', 'currency'}
-    sub_group_keys = {'ID', 'dateCreated', 'title', 'description', 'priceType', 'url', 'subType', 'images',
-                      'cityAddress', 'state', 'celková podlahová plocha', 'stav'}
+    grouping_keys = {'sellerName', 'sellerWeb', 'address', 'offerType', 'type'}
+    sub_group_keys = {'currency', 'price', 'ID', 'dateCreated', 'title', 'description', 'priceType', 'url', 'subType', 'images',
+                      'cityAddress', 'state', 'celková podlahová plocha', 'stav', 'lat', 'lon', 'approx'}
 
     all_record_keys = grouping_keys.union(sub_group_keys)
+
+    gps_df = pd.read_pickle('gps.pkl')
 
     unwanted_words = ['Štát:', 'Mesto:', 'Lokalita:', 'Ulica:']
     unwanted_words2 = ['Štát', 'Mesto', 'Lokalita', 'Ulica']
@@ -79,7 +81,9 @@ class Aggregator:
                 del entry['properties']
                 properties_data = [data for data in properties if data['name']]
                 entry.update(Aggregator.get_property_values(properties_data))
-            entry.update(cls.get_address_specification(entry))
+            address = cls.get_address_specification(entry)
+            position = cls.get_position_for(address['address'])
+            entry.update(position)
             entry_keys = {key for key in entry}
             entry.update({key: 'default' for key in cls.all_record_keys - entry_keys})
 
@@ -104,6 +108,8 @@ class Aggregator:
             if not address:
                 address_tmp = [value for _, value in entry['sellerAddress'].items() if value]
                 address = ', '.join(address_tmp) if address_tmp else 'Slovensko'
+            if address == 'Zahraničie':
+                return {'address': 'Slovensko'}
             if any(word in cls.unwanted_words for word in address.split()):
                 address = address.replace(' - ', '-') \
                     .replace("Štát: ", ":") \
@@ -121,3 +127,14 @@ class Aggregator:
                 return {'address': address}
             except KeyError:
                 return {'address': 'Slovensko'}
+
+    @classmethod
+    def get_position_for(cls, address):
+        if address in cls.gps_df.address.values:
+            return cls.gps_df[cls.gps_df['address'] == address].to_dict(orient='records')[0]
+        else:
+            cls.find_address(address)
+
+    @classmethod
+    def find_address(cls, address):
+        pass
