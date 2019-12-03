@@ -81,6 +81,6 @@ class AddressReader:
                 else:
                     continue
             coordinates = first_record['geometry']['coordinates']
-            adresses.append({'address': address, 'lat': coordinates[0], 'lon': coordinates[1], 'approx': approx})
+            adresses.append({'address_lower': address.lower(), 'address': address, 'lat': coordinates[0], 'lon': coordinates[1], 'approx': approx})
             cls.collected_addresses.append(address.lower())
         return adresses
