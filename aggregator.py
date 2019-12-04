@@ -130,12 +130,7 @@ class Aggregator:
 
     @classmethod
     def get_position_for(cls, address):
-        if address in cls.gps_df.address.values:
-            return cls.gps_df[cls.gps_df['address'] == address].to_dict(orient='records')[0]
+        if address.lower() in cls.gps_df.address_lower.values:
+            return cls.gps_df[cls.gps_df['address_lower'] == address.lower()].to_dict(orient='records')[0]
         else:
-            print(address)
-            cls.find_address(address)
-
-    @classmethod
-    def find_address(cls, address):
-        pass
+            return cls.gps_df[cls.gps_df['address_lower'] == "Slovensko".lower()].to_dict(orient='records')[0]
