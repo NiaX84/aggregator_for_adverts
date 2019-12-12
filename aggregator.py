@@ -43,6 +43,7 @@ class Aggregator:
     all_record_keys = grouping_keys.union(sub_group_keys)
 
     gps_df = pd.read_pickle('gps.pkl')
+    gps_values = gps_df.address_lower.values
 
     unwanted_words = ['Štát:', 'Mesto:', 'Lokalita:', 'Ulica:']
     unwanted_words2 = ['Štát', 'Mesto', 'Lokalita', 'Ulica']
@@ -55,7 +56,14 @@ class Aggregator:
             records.extend(self.load_all_records(file))
 
         records_df = pd.DataFrame(records)
-        result = records_df \
+        new_records = []
+        for _, row in records_df.iterrows():
+            new_row = {key: row[key] for key in self.all_record_keys}
+            new_row.update(self.get_address_specification(row).to_dict(orient='records')[0])
+            new_records.append(new_row)
+
+        new_records_df = pd.DataFrame(new_records)
+        result = new_records_df \
             .groupby(list(self.grouping_keys), as_index=False) \
             .apply(lambda x: x[list(self.sub_group_keys)].to_dict('r')) \
             .reset_index().rename(columns={0: 'details'}) \
@@ -81,9 +89,6 @@ class Aggregator:
                 del entry['properties']
                 properties_data = [data for data in properties if data['name']]
                 entry.update(Aggregator.get_property_values(properties_data))
-            address = cls.get_address_specification(entry)
-            position = cls.get_position_for(address['address'])
-            entry.update(position)
             entry_keys = {key for key in entry}
             entry.update({key: 'default' for key in cls.all_record_keys - entry_keys})
 
@@ -109,7 +114,7 @@ class Aggregator:
                 address_tmp = [value for _, value in entry['sellerAddress'].items() if value]
                 address = ', '.join(address_tmp) if address_tmp else 'Slovensko'
             if address == 'Zahraničie':
-                return {'address': 'Slovensko'}
+                address = 'Slovensko'
             if any(word in cls.unwanted_words for word in address.split()):
                 address = address.replace(' - ', '-') \
                     .replace("Štát: ", ":") \
@@ -120,17 +125,20 @@ class Aggregator:
                 address = ', '.join(word for word in address if word not in cls.unwanted_words2)
             if '(' in address or ")" in address:
                 address = address.replace('(', ', ').replace(')', '')
-            return {'address': address}
+            gps = cls.get_position_for(address)
+            return gps
         except KeyError:
             try:
                 address = entry['city']
-                return {'address': address}
+                gps = cls.get_position_for(address)
+                return gps
             except KeyError:
-                return {'address': 'Slovensko'}
+                gps = cls.get_position_for('Slovensko')
+                return gps
 
     @classmethod
     def get_position_for(cls, address):
-        if address.lower() in cls.gps_df.address_lower.values:
-            return cls.gps_df[cls.gps_df['address_lower'] == address.lower()].to_dict(orient='records')[0]
+        if address.lower() in cls.gps_values:
+            return cls.gps_df[cls.gps_df['address_lower'] == address.lower()]
         else:
-            return cls.gps_df[cls.gps_df['address_lower'] == "Slovensko".lower()].to_dict(orient='records')[0]
+            return cls.gps_df[cls.gps_df['address_lower'] == "Slovensko".lower()]
