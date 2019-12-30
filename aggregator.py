@@ -1,3 +1,5 @@
+from functools import lru_cache
+
 import pandas as pd
 
 import json
@@ -56,14 +58,7 @@ class Aggregator:
             records.extend(self.load_all_records(file))
 
         records_df = pd.DataFrame(records)
-        new_records = []
-        for _, row in records_df.iterrows():
-            new_row = {key: row[key] for key in self.all_record_keys}
-            new_row.update(self.get_address_specification(row).to_dict())
-            new_records.append(new_row)
-
-        new_records_df = pd.DataFrame(new_records)
-        result = new_records_df \
+        result = records_df \
             .groupby(list(self.grouping_keys), as_index=False) \
             .apply(lambda x: x[list(self.sub_group_keys)].to_dict('r')) \
             .reset_index().rename(columns={0: 'details'}) \
@@ -84,6 +79,8 @@ class Aggregator:
     def collect_records(cls, f):
         data_record = json.loads(f.read().decode())
         for entry in data_record:
+            address_spec = cls.get_address_specification(entry)
+            entry.update(address_spec)
             if 'properties' in entry:
                 properties = entry['properties']
                 del entry['properties']
@@ -125,20 +122,20 @@ class Aggregator:
                 address = ', '.join(word for word in address if word not in cls.unwanted_words2)
             if '(' in address or ")" in address:
                 address = address.replace('(', ', ').replace(')', '')
-            gps = cls.get_position_for(address)
-            return gps
+            return cls.get_position_for(address.lower())
         except KeyError:
             try:
                 address = entry['city']
-                gps = cls.get_position_for(address)
-                return gps
+                return cls.get_position_for(address.lower())
             except KeyError:
-                gps = cls.get_position_for('Slovensko')
-                return gps
+                return cls.get_position_for('slovensko')
 
     @classmethod
+    @lru_cache(maxsize=128)
     def get_position_for(cls, address):
-        if address.lower() in cls.gps_values:
-            return cls.gps_df.loc[address.lower()]
+        gps_dict = {'address': address.title()}
+        if address in cls.gps_values:
+            gps_dict.update(cls.gps_df.loc[address].to_dict())
         else:
-            return cls.gps_df.loc["Slovensko".lower()]
+            gps_dict.update(cls.gps_df.loc['slovensko'].to_dict())
+        return gps_dict

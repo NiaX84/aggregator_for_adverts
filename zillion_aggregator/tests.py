@@ -17,7 +17,7 @@ class ReadJsonFileTest(TestCase):
                         "https://api.apify.com/v2/datasets/RrQY7Zk6TBQp7Zcnv/items?format=json&clean=1&attachment=1"
 
     def test_read_json_files_from_web_missing_full(self):
-        response = self.client.post(reverse('zillion_aggregator:read_json'), {'files': "https://api.apify.com/v2/datasets/KR4HaLLWPX7F6Qxse/items?format=json&clean=1&attachment=1"})
+        response = self.client.post(reverse('zillion_aggregator:read_json'), {'files': self.json_files_string})
         self.assertEqual(response.status_code, 200)
         result = json.loads(response.content, encoding='utf-8')
         with open('records.json', 'w', encoding='utf-8') as json_file:
