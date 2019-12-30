@@ -42,8 +42,8 @@ class Aggregator:
 
     all_record_keys = grouping_keys.union(sub_group_keys)
 
-    gps_df = pd.read_pickle('gps.pkl')
-    gps_values = gps_df.address_lower.values
+    gps_df = pd.read_pickle('gps_by_address_lower.pkl')
+    gps_values = gps_df.index.values
 
     unwanted_words = ['Štát:', 'Mesto:', 'Lokalita:', 'Ulica:']
     unwanted_words2 = ['Štát', 'Mesto', 'Lokalita', 'Ulica']
@@ -59,7 +59,7 @@ class Aggregator:
         new_records = []
         for _, row in records_df.iterrows():
             new_row = {key: row[key] for key in self.all_record_keys}
-            new_row.update(self.get_address_specification(row).to_dict(orient='records')[0])
+            new_row.update(self.get_address_specification(row).to_dict())
             new_records.append(new_row)
 
         new_records_df = pd.DataFrame(new_records)
@@ -139,6 +139,6 @@ class Aggregator:
     @classmethod
     def get_position_for(cls, address):
         if address.lower() in cls.gps_values:
-            return cls.gps_df[cls.gps_df['address_lower'] == address.lower()]
+            return cls.gps_df.loc[address.lower()]
         else:
-            return cls.gps_df[cls.gps_df['address_lower'] == "Slovensko".lower()]
+            return cls.gps_df.loc["Slovensko".lower()]
