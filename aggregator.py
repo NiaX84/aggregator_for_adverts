@@ -1,9 +1,12 @@
 from functools import lru_cache
+from urllib.error import URLError
 
 import pandas as pd
 
 import json
 from urllib.request import urlopen
+
+from Pickler import Pickler
 
 
 class Aggregator:
@@ -40,7 +43,7 @@ class Aggregator:
 
     grouping_keys = {'sellerName', 'sellerWeb', 'address', 'offerType', 'type'}
     sub_group_keys = {'currency', 'price', 'ID', 'dateCreated', 'title', 'description', 'priceType', 'url', 'subType', 'images',
-                      'cityAddress', 'state', 'celková podlahová plocha', 'stav', 'lat', 'lon', 'approx'}
+                      'cityAddress', 'state', 'celková podlahová plocha', 'stav', 'lat', 'lon', 'approx', 'record_id'}
 
     all_record_keys = grouping_keys.union(sub_group_keys)
 
@@ -58,6 +61,9 @@ class Aggregator:
             records.extend(self.load_all_records(file))
 
         records_df = pd.DataFrame(records)
+
+        Pickler.pickle_df(records_df, 'records.pkl')
+        records_df = self.group_records_by_description(records_df)
         result = records_df \
             .groupby(list(self.grouping_keys), as_index=False) \
             .apply(lambda x: x[list(self.sub_group_keys)].to_dict('r')) \
@@ -68,16 +74,17 @@ class Aggregator:
     def load_all_records(self, file):
         try:
             with urlopen(file) as f:
-                data_record = self.collect_records(f)
+                data_record = json.loads(f.read().decode())
+                data_record = self.collect_records(data_record)
                 return data_record
-        except ValueError:
+        except URLError:
             with open(file, "r", encoding='utf-8') as f:
-                data_record = self.collect_records(f)
+                data_record = json.loads(f.read())
+                data_record = self.collect_records(data_record)
                 return data_record
 
     @classmethod
-    def collect_records(cls, f):
-        data_record = json.loads(f.read().decode())
+    def collect_records(cls, data_record):
         for entry in data_record:
             address_spec = cls.get_address_specification(entry)
             entry.update(address_spec)
@@ -139,3 +146,9 @@ class Aggregator:
         else:
             gps_dict.update(cls.gps_df.loc['slovensko'].to_dict())
         return gps_dict
+
+    @staticmethod
+    def group_records_by_description(records_df):
+        records_df['record_id'] = range(1, len(records_df)+1)
+        record_ids_with_descriptions = records_df[['record_id', 'description']]
+        return record_ids_with_descriptions

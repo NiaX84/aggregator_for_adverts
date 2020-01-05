@@ -1,9 +1,6 @@
 import dill as pickle
 import pandas as pd
 
-from aggregator import Aggregator
-
-
 class Pickler:
 
     def __init__(self, class_to_pickle):
@@ -16,8 +13,8 @@ class Pickler:
             pickle.dump(aggregator, file)
 
     @staticmethod
-    def pickle_df(df):
-        pd.to_pickle(df, 'gps.pkl')
+    def pickle_df(df, file_name='gps.pkl'):
+        pd.to_pickle(df, file_name)
 
 
 if __name__ == '__main__':
