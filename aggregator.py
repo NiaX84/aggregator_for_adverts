@@ -1,10 +1,14 @@
 from functools import lru_cache
 from urllib.error import URLError
 
+import numpy as np
 import pandas as pd
 
 import json
 from urllib.request import urlopen
+
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
 
 from Pickler import Pickler
 
@@ -41,8 +45,8 @@ class Aggregator:
         'stav nehnuteľnosti': 'stav'
     }
 
-    grouping_keys = {'sellerName', 'sellerWeb', 'address', 'offerType', 'type'}
-    sub_group_keys = {'currency', 'price', 'ID', 'dateCreated', 'title', 'description', 'priceType', 'url', 'subType', 'images',
+    grouping_keys = {'similarity_id'}
+    sub_group_keys = {'sellerName', 'sellerWeb', 'address', 'offerType', 'type', 'currency', 'price', 'ID', 'dateCreated', 'title', 'description', 'priceType', 'url', 'subType', 'images',
                       'cityAddress', 'state', 'celková podlahová plocha', 'stav', 'lat', 'lon', 'approx', 'record_id'}
 
     all_record_keys = grouping_keys.union(sub_group_keys)
@@ -61,8 +65,7 @@ class Aggregator:
             records.extend(self.load_all_records(file))
 
         records_df = pd.DataFrame(records)
-
-        Pickler.pickle_df(records_df, 'records.pkl')
+        records_df['description'].fillna('default', inplace=True)
         records_df = self.group_records_by_description(records_df)
         result = records_df \
             .groupby(list(self.grouping_keys), as_index=False) \
@@ -150,5 +153,24 @@ class Aggregator:
     @staticmethod
     def group_records_by_description(records_df):
         records_df['record_id'] = range(1, len(records_df)+1)
-        record_ids_with_descriptions = records_df[['record_id', 'description']]
-        return record_ids_with_descriptions
+        # records_df['similarity_id'] = np.nan
+        aggregated_records = records_df[['record_id', 'description']].values
+        print(len(aggregated_records))
+        only_descriptions = aggregated_records[:, 1]
+        tf_idf_vectorizer = TfidfVectorizer()
+        try:
+            tf_idf_matrix = tf_idf_vectorizer.fit_transform(only_descriptions)
+            similarity_id = 0
+            selected_records = []
+            for i in range(0, tf_idf_matrix.shape[0]):
+                if i + 1 in selected_records:
+                    continue
+                description_similarity = cosine_similarity(tf_idf_matrix[i:i + 1], tf_idf_matrix)
+                record_ids = aggregated_records[np.where(description_similarity > 0.8)[1], 0]
+                similarity_id += 1
+                records_df.loc[records_df.record_id.isin(record_ids), 'similarity_id'] = similarity_id
+                selected_records.extend(record_ids)
+        except AttributeError:
+            print([record for record in aggregated_records if record[1] is None])
+        # records_df['similarity_id'] = records_df['similarity_id'].astype(int)
+        return records_df
