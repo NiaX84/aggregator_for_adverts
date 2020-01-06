@@ -45,11 +45,11 @@ class Aggregator:
         'stav nehnuteľnosti': 'stav'
     }
 
-    grouping_keys = {'similarity_id'}
+    grouping_keys = {'similar_record_id'}
     sub_group_keys = {'sellerName', 'sellerWeb', 'address', 'offerType', 'type', 'currency', 'price', 'ID', 'dateCreated', 'title', 'description', 'priceType', 'url', 'subType', 'images',
                       'cityAddress', 'state', 'celková podlahová plocha', 'stav', 'lat', 'lon', 'approx', 'record_id'}
 
-    all_record_keys = grouping_keys.union(sub_group_keys)
+    all_record_keys = sub_group_keys
 
     gps_df = pd.read_pickle('gps_by_address_lower.pkl')
     gps_values = gps_df.index.values
@@ -66,7 +66,8 @@ class Aggregator:
 
         records_df = pd.DataFrame(records)
         records_df['description'].fillna('default', inplace=True)
-        records_df = self.group_records_by_description(records_df)
+        similar_records_df = self.group_records_by_description(records_df)
+        records_df = records_df.merge(similar_records_df, on="record_id")
         result = records_df \
             .groupby(list(self.grouping_keys), as_index=False) \
             .apply(lambda x: x[list(self.sub_group_keys)].to_dict('r')) \
@@ -152,25 +153,42 @@ class Aggregator:
 
     @staticmethod
     def group_records_by_description(records_df):
-        records_df['record_id'] = range(1, len(records_df)+1)
-        # records_df['similarity_id'] = np.nan
-        aggregated_records = records_df[['record_id', 'description']].values
-        print(len(aggregated_records))
-        only_descriptions = aggregated_records[:, 1]
-        tf_idf_vectorizer = TfidfVectorizer()
-        try:
+
+        def get_description_similarity():
+            description_similarity[:, :] = cosine_similarity(tf_idf_matrix[step * offset: (step + 1) * offset], tf_idf_matrix)
+            return description_similarity
+
+        def init_similarity_indices():
+            indices = np.nonzero(get_description_similarity() > 0.8)[0] + step*offset, np.nonzero(get_description_similarity() > 0.8)[1]
+            return np.transpose(aggregated_records[indices, 0])
+
+        def update_similarity_indices():
+            indices = np.nonzero(get_description_similarity() > 0.8)[0] + step*offset, np.nonzero(get_description_similarity() > 0.8)[1]
+            return np.vstack(
+                (similarity_indices, np.transpose(aggregated_records[indices, 0])))
+
+        similar_indices_all = None
+
+        records_df['record_id'] = range(1, len(records_df) + 1)
+        for _, group_df in records_df.groupby('offerType'):
+            aggregated_records = group_df[['record_id', 'description']].values
+            only_descriptions = aggregated_records[:, 1]
+            tf_idf_vectorizer = TfidfVectorizer()
             tf_idf_matrix = tf_idf_vectorizer.fit_transform(only_descriptions)
-            similarity_id = 0
-            selected_records = []
-            for i in range(0, tf_idf_matrix.shape[0]):
-                if i + 1 in selected_records:
-                    continue
-                description_similarity = cosine_similarity(tf_idf_matrix[i:i + 1], tf_idf_matrix)
-                record_ids = aggregated_records[np.where(description_similarity > 0.8)[1], 0]
-                similarity_id += 1
-                records_df.loc[records_df.record_id.isin(record_ids), 'similarity_id'] = similarity_id
-                selected_records.extend(record_ids)
-        except AttributeError:
-            print([record for record in aggregated_records if record[1] is None])
-        # records_df['similarity_id'] = records_df['similarity_id'].astype(int)
-        return records_df
+            offset = 1 if len(only_descriptions) < 1000 else 1000
+            description_similarity = np.empty((offset, len(only_descriptions)))
+            n_steps = len(only_descriptions)//offset
+            remainder = len(only_descriptions) % offset
+            similarity_indices = None
+            for step in range(n_steps):
+                similarity_indices = init_similarity_indices() if step == 0 else update_similarity_indices()
+            print(similarity_indices)
+
+            if similar_indices_all is None:
+                similar_indices_all = similarity_indices
+            else:
+                similar_indices_all = np.vstack((similar_indices_all, similarity_indices))
+
+        similarity_indices_pdf = pd.DataFrame(similar_indices_all, columns=['record_id', 'similar_record_id'])
+        similar_records_pdf_grouped = similarity_indices_pdf.groupby('record_id', axis=0).agg(tuple)
+        return similar_records_pdf_grouped
