@@ -182,7 +182,6 @@ class Aggregator:
             similarity_indices = None
             for step in range(n_steps):
                 similarity_indices = init_similarity_indices() if step == 0 else update_similarity_indices()
-            print(similarity_indices)
 
             if similar_indices_all is None:
                 similar_indices_all = similarity_indices
