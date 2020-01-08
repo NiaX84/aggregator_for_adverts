@@ -167,6 +167,13 @@ class Aggregator:
             return np.vstack(
                 (similarity_indices, np.transpose(aggregated_records[indices, 0])))
 
+        def update_similarity_indices_with_remainder():
+            description_similarity_rem = cosine_similarity(tf_idf_matrix[n_steps * offset: n_steps * offset + remainder], tf_idf_matrix)
+            indices = np.nonzero(description_similarity_rem > 0.8)[0] + n_steps * offset, np.nonzero(description_similarity_rem > 0.8)[1]
+            return np.vstack(
+                (similarity_indices, np.transpose(aggregated_records[indices, 0])))
+
+
         similar_indices_all = None
 
         records_df['record_id'] = range(1, len(records_df) + 1)
@@ -175,13 +182,15 @@ class Aggregator:
             only_descriptions = aggregated_records[:, 1]
             tf_idf_vectorizer = TfidfVectorizer()
             tf_idf_matrix = tf_idf_vectorizer.fit_transform(only_descriptions)
-            offset = 1 if len(only_descriptions) < 1000 else 1000
+            offset = 1 if len(only_descriptions) < 100 else 100
             description_similarity = np.empty((offset, len(only_descriptions)))
             n_steps = len(only_descriptions)//offset
             remainder = len(only_descriptions) % offset
             similarity_indices = None
             for step in range(n_steps):
                 similarity_indices = init_similarity_indices() if step == 0 else update_similarity_indices()
+            if remainder:
+                similarity_indices = update_similarity_indices_with_remainder()
 
             if similar_indices_all is None:
                 similar_indices_all = similarity_indices
