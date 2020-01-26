@@ -107,6 +107,9 @@ class Aggregator:
                 properties_data = [data for data in properties if data['name']]
                 entry.update(Aggregator.get_property_values(properties_data))
             entry_keys = {key for key in entry}
+            if 'stav' not in entry_keys and 'description' in entry_keys:
+                entry['stav'] = cls.get_state_of_property(entry['description'])
+                entry_keys.add('stav')
             entry.update({key: 'default' for key in cls.all_record_keys - entry_keys})
 
         return data_record
@@ -209,3 +212,24 @@ class Aggregator:
         similarity_indices_pdf = pd.DataFrame(similar_indices_all, columns=['record_id', 'similar_record_id'])
         similar_records_pdf_grouped = similarity_indices_pdf.groupby('record_id', axis=0).agg(tuple)
         return similar_records_pdf_grouped
+
+    @classmethod
+    def get_state_of_property(cls, property_description):
+        if property_description is None:
+            return 'pôvodný'
+        if 'novostav' in property_description.lower():
+            return 'novostavba'
+        if 'rekonštru' in property_description.lower():
+            return 'rekonštrukcia'
+        if 'preroben' in property_description.lower():
+            return 'rekonštrukcia'
+        if 'zateplen' in property_description.lower():
+            return 'zateplený'
+        if "nutná rekonštrukcia" in property_description.lower():
+            return "nutná rekonštrukcia"
+        if "rekonštrukcia nutná" in property_description.lower():
+            return "nutná rekonštrukcia"
+        if "možnosť rekonštrukcie" in property_description.lower():
+            return "pôvodný"
+        else:
+            return 'pôvodný'
