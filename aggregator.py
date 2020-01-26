@@ -46,16 +46,19 @@ class Aggregator:
     }
 
     grouping_keys = {'similar_record_id'}
-    sub_group_keys = {'sellerName', 'sellerWeb', 'address', 'offerType', 'type', 'currency', 'price', 'ID', 'dateCreated', 'title', 'description', 'priceType', 'url', 'subType', 'images',
-                      'cityAddress', 'state', 'celková podlahová plocha', 'stav', 'lat', 'lon', 'approx', 'record_id'}
+    sub_group_keys = ['sellerName', 'sellerWeb', 'currency', 'price', 'ID', 'dateCreated', 'title', 'description', 'priceType', 'url', 'subType', 'images',
+                      'cityAddress', 'state', 'approx', 'record_id']
 
-    all_record_keys = sub_group_keys
+    all_record_keys = {'sellerName', 'sellerWeb', 'address', 'offerType', 'type', 'currency', 'price', 'ID', 'dateCreated', 'title', 'description', 'priceType', 'url', 'subType', 'images',
+                      'cityAddress', 'state', 'celková podlahová plocha', 'stav', 'lat', 'lon', 'approx', 'record_id'}
 
     gps_df = pd.read_pickle('gps_by_address_lower.pkl')
     gps_values = gps_df.index.values
 
     unwanted_words = ['Štát:', 'Mesto:', 'Lokalita:', 'Ulica:']
     unwanted_words2 = ['Štát', 'Mesto', 'Lokalita', 'Ulica']
+
+    first_level_info = ['similar_record_id', "offerType", "type", "stav", "celková podlahová plocha", "address", "lat", "lon"]
 
     def aggregate(self, files):
 
@@ -68,11 +71,17 @@ class Aggregator:
         records_df['description'].fillna('default', inplace=True)
         similar_records_df = self.group_records_by_description(records_df)
         records_df = records_df.merge(similar_records_df, on="record_id")
-        result = records_df \
-            .groupby(list(self.grouping_keys), as_index=False) \
-            .apply(lambda x: x[list(self.sub_group_keys)].to_dict('r')) \
-            .reset_index().rename(columns={0: 'details'}) \
+        first_level_result = records_df[self.first_level_info].drop_duplicates(subset='similar_record_id')
+        second_level_results = records_df[self.sub_group_keys + ['similar_record_id']] \
+            .groupby(list(self.grouping_keys), as_index=True) \
+            .apply(lambda x: x[self.sub_group_keys].to_dict('r')) \
+            .reset_index().rename(columns={0: 'details'})
+
+        result = first_level_result\
+            .merge(second_level_results, on='similar_record_id')\
+            .drop('similar_record_id', axis=1) \
             .to_dict(orient='records')
+
         return result
 
     def load_all_records(self, file):
