@@ -110,6 +110,9 @@ class Aggregator:
             if 'stav' not in entry_keys and 'description' in entry_keys:
                 entry['stav'] = cls.get_state_of_property(entry['description'])
                 entry_keys.add('stav')
+            if 'celková podlahová plocha' not in entry_keys:
+                entry['celková podlahová plocha'] = cls.get_area(entry['description'])
+                entry_keys.add('celková podlahová plocha')
             entry.update({key: 'default' for key in cls.all_record_keys - entry_keys})
 
         return data_record
@@ -185,7 +188,6 @@ class Aggregator:
             return np.vstack(
                 (similarity_indices, np.transpose(aggregated_records[indices, 0])))
 
-
         similar_indices_all = None
 
         records_df['record_id'] = range(1, len(records_df) + 1)
@@ -233,3 +235,15 @@ class Aggregator:
             return "pôvodný"
         else:
             return 'pôvodný'
+
+    @classmethod
+    def get_area(cls, property_description):
+        if property_description is None:
+            return 'neuvedené'
+        list_of_strings_around_m2 = property_description.split("m2")
+        for part in list_of_strings_around_m2:
+            new_part = part.rstrip()
+            if any(word in new_part.lower() for word in {'ploch', 'byt', "výmer"}):
+                last_space = new_part.rfind(' ')
+                return new_part[last_space+1:]
+        return 'neuvedené'
