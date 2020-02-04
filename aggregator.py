@@ -52,7 +52,7 @@ class Aggregator:
     all_record_keys = {'sellerName', 'sellerWeb', 'address', 'offerType', 'type', 'currency', 'price', 'ID', 'dateCreated', 'title', 'description', 'priceType', 'url', 'subType', 'images',
                       'cityAddress', 'state', 'celková podlahová plocha', 'stav', 'lat', 'lon', 'approx', 'record_id'}
 
-    gps_df = pd.read_pickle('gps_by_address_lower.pkl')
+    gps_df = pd.read_pickle('gps_new.pkl')
     gps_values = gps_df.index.values
 
     unwanted_words = ['Štát:', 'Mesto:', 'Lokalita:', 'Ulica:']
