@@ -11,6 +11,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
 from Pickler import Pickler
+from zillion_aggregator import mappings
 
 
 class Aggregator:
@@ -34,15 +35,15 @@ class Aggregator:
         'city': 'cityAdress',
         'state': 'state',
         'address': 'address',
-        'zast. plocha': 'celková podlahová plocha',
-        'zastavaná plocha': 'celková podlahová plocha',
-        'zastavaná plocha v m2': 'celková podlahová plocha',
-        'výmera zastavaného pozemku': 'celková podlahová plocha',
-        'celková podlahová plocha': 'celková podlahová plocha',
-        'celková podlah.plocha': 'celková podlahová plocha',
-        'celková podlahová plocha bytu': 'celková podlahová plocha',
-        'stav': 'stav',
-        'stav nehnuteľnosti': 'stav'
+        'zast. plocha': 'floorArea',
+        'zastavaná plocha': 'floorArea',
+        'zastavaná plocha v m2': 'floorArea',
+        'výmera zastavaného pozemku': 'floorArea',
+        'celková podlahová plocha': 'floorArea',
+        'celková podlah.plocha': 'floorArea',
+        'celková podlahová plocha bytu': 'floorArea',
+        'stav': 'condition',
+        'stav nehnuteľnosti': 'condition'
     }
 
     grouping_keys = {'similar_record_id'}
@@ -50,15 +51,15 @@ class Aggregator:
                       'cityAddress', 'state', 'approx', 'record_id']
 
     all_record_keys = {'sellerName', 'sellerWeb', 'address', 'offerType', 'type', 'currency', 'price', 'ID', 'dateCreated', 'title', 'description', 'priceType', 'url', 'subType', 'images',
-                      'cityAddress', 'state', 'celková podlahová plocha', 'stav', 'lat', 'lon', 'approx', 'record_id'}
+                      'cityAddress', 'state', 'floorArea', 'condition', 'lat', 'lon', 'approx', 'record_id'}
 
-    gps_df = pd.read_pickle('gps_new.pkl')
+    gps_df = pd.read_pickle('gps_by_address_lower.pkl')
     gps_values = gps_df.index.values
 
     unwanted_words = ['Štát:', 'Mesto:', 'Lokalita:', 'Ulica:']
     unwanted_words2 = ['Štát', 'Mesto', 'Lokalita', 'Ulica']
 
-    first_level_info = ['similar_record_id', "offerType", "type", "stav", "celková podlahová plocha", "address", "lat", "lon"]
+    first_level_info = ['similar_record_id', "offerType", "type", "condition", "floorArea", "address", "lat", "lon"]
 
     def aggregate(self, files):
 
@@ -107,12 +108,14 @@ class Aggregator:
                 properties_data = [data for data in properties if data['name']]
                 entry.update(Aggregator.get_property_values(properties_data))
             entry_keys = {key for key in entry}
-            if 'stav' not in entry_keys and 'description' in entry_keys:
-                entry['stav'] = cls.get_state_of_property(entry['description'])
-                entry_keys.add('stav')
-            if 'celková podlahová plocha' not in entry_keys:
-                entry['celková podlahová plocha'] = cls.get_area(entry['description'])
-                entry_keys.add('celková podlahová plocha')
+            if 'condition' not in entry_keys and 'description' in entry_keys:
+                entry['condition'] = cls.get_state_of_property(entry['description'])
+                entry_keys.add('condition')
+            if 'floorArea' not in entry_keys:
+                entry['floorArea'] = cls.get_area(entry['description'])
+                entry_keys.add('floorArea')
+            entry['condition'] = mappings.stav[entry['condition'].strip()]
+            entry['type'] = mappings.property_type[entry['type']]
             entry.update({key: 'default' for key in cls.all_record_keys - entry_keys})
 
         return data_record
@@ -120,7 +123,7 @@ class Aggregator:
     @classmethod
     def get_property_values(cls, properties_data):
         valid_property_data = (data for data in properties_data if
-                               data['name'].lower().strip(':') in cls.column_mapping)
+                               data['name'].lower().strip(': ') in cls.column_mapping)
         result = {}
         for data in valid_property_data:
             try:
@@ -218,23 +221,23 @@ class Aggregator:
     @classmethod
     def get_state_of_property(cls, property_description):
         if property_description is None:
-            return 'pôvodný'
+            return mappings.stav['pôvodný']
         if 'novostav' in property_description.lower():
-            return 'novostavba'
+            return mappings.stav['novostavba']
         if 'rekonštru' in property_description.lower():
-            return 'rekonštrukcia'
+            return mappings.stav['rekonštrukcia']
         if 'preroben' in property_description.lower():
-            return 'rekonštrukcia'
+            return mappings.stav['rekonštrukcia']
         if 'zateplen' in property_description.lower():
-            return 'zateplený'
+            return mappings.stav['zateplený']
         if "nutná rekonštrukcia" in property_description.lower():
-            return "nutná rekonštrukcia"
+            return mappings.stav["nutná rekonštrukcia"]
         if "rekonštrukcia nutná" in property_description.lower():
-            return "nutná rekonštrukcia"
+            return mappings.stav["nutná rekonštrukcia"]
         if "možnosť rekonštrukcie" in property_description.lower():
-            return "pôvodný"
+            return mappings.stav["pôvodný"]
         else:
-            return 'pôvodný'
+            return mappings.stav['pôvodný']
 
     @classmethod
     def get_area(cls, property_description):
