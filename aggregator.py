@@ -70,20 +70,20 @@ class Aggregator:
 
         records_df = pd.DataFrame(records)
         records_df['description'].fillna('default', inplace=True)
-        similar_records_df = self.group_records_by_description(records_df)
-        records_df = records_df.merge(similar_records_df, on="record_id")
-        first_level_result = records_df[self.first_level_info].drop_duplicates(subset='similar_record_id')
-        second_level_results = records_df[self.sub_group_keys + ['similar_record_id']] \
-            .groupby(list(self.grouping_keys), as_index=True) \
-            .apply(lambda x: x[self.sub_group_keys].to_dict('r')) \
-            .reset_index().rename(columns={0: 'details'})
+        # similar_records_df = self.group_records_by_description(records_df)
+        # records_df = records_df.merge(similar_records_df, on="record_id")
+        # first_level_result = records_df[self.first_level_info].drop_duplicates(subset='similar_record_id')
+        # second_level_results = records_df[self.sub_group_keys + ['similar_record_id']] \
+        #     .groupby(list(self.grouping_keys), as_index=True) \
+        #     .apply(lambda x: x[self.sub_group_keys].to_dict('r')) \
+        #     .reset_index().rename(columns={0: 'details'})
 
-        result = first_level_result\
-            .merge(second_level_results, on='similar_record_id')\
-            .drop('similar_record_id', axis=1) \
-            .to_dict(orient='records')
+        # result = first_level_result\
+        #     .merge(second_level_results, on='similar_record_id')\
+        #     .drop('similar_record_id', axis=1) \
+        #     .to_dict(orient='records')
 
-        return result
+        return records_df.to_dict(orient='records')
 
     def load_all_records(self, file):
         try:
@@ -136,11 +136,13 @@ class Aggregator:
     def get_address_specification(cls, entry):
         try:
             address = entry['address']
+            address_source = "address"
             if not address:
                 address_tmp = [value for _, value in entry['sellerAddress'].items() if value]
                 address = ', '.join(address_tmp) if address_tmp else 'Slovensko'
+                address_source = "seller_address"
             if address == 'Zahraničie':
-                address = 'Slovensko'
+                address = 'Zahraničie'
             if any(word in cls.unwanted_words for word in address.split()):
                 address = address.replace(' - ', '-') \
                     .replace("Štát: ", ":") \
@@ -151,18 +153,19 @@ class Aggregator:
                 address = ', '.join(word for word in address if word not in cls.unwanted_words2)
             if '(' in address or ")" in address:
                 address = address.replace('(', ', ').replace(')', '')
-            return cls.get_position_for(address.lower())
+            return cls.get_position_for(address.lower(), address_source)
         except KeyError:
             try:
                 address = entry['city']
-                return cls.get_position_for(address.lower())
+                address_source = 'city'
+                return cls.get_position_for(address.lower(), address_source)
             except KeyError:
-                return cls.get_position_for('slovensko')
+                return cls.get_position_for('slovensko', 'default')
 
     @classmethod
     @lru_cache(maxsize=128)
-    def get_position_for(cls, address):
-        gps_dict = {'address': address.title()}
+    def get_position_for(cls, address, address_source):
+        gps_dict = {'address': address.title(), 'address_source': address_source}
         if address in cls.gps_values:
             gps_dict.update(cls.gps_df.loc[address].to_dict())
         else:
