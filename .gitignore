@@ -6,3 +6,9 @@ __pycache__/
 records.json
 
 test_data/
+my_first_django_app/__pycache__/settings.cpython-37.pyc
+my_first_django_app/__pycache__/settings.cpython-37.pyc
+my_first_django_app/__pycache__/urls.cpython-37.pyc
+zillion_aggregator/__pycache__/tests.cpython-37.pyc
+zillion_aggregator/__pycache__/urls.cpython-37.pyc
+zillion_aggregator/__pycache__/views.cpython-37.pyc
