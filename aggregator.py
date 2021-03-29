@@ -141,6 +141,7 @@ class Aggregator:
     def get_address_specification(cls, entry):
         try:
             address = entry['address']
+            address_source = "address"
             if not address:
                 return None
             if address == 'Zahraničie' or address == 'Slovensko':
@@ -155,14 +156,14 @@ class Aggregator:
                 address = ', '.join(word for word in address if word not in cls.unwanted_words2)
             if '(' in address or ")" in address:
                 address = address.replace('(', ', ').replace(')', '')
-            return cls.get_position_for(address.lower())
+            return cls.get_position_for(address.lower(), address_source)
         except KeyError:
             return None
 
     @classmethod
     @lru_cache(maxsize=128)
-    def get_position_for(cls, address):
-        gps_dict = {'address': address.title()}
+    def get_position_for(cls, address, address_source):
+        gps_dict = {'address': address.title(), 'address_source': address_source}
         if address in cls.gps_values:
             gps_dict.update(cls.gps_df.loc[address].to_dict())
         else:

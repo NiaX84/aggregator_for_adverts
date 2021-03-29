@@ -42,10 +42,10 @@ class ReadJsonFileTest(TestCase):
         with open('records.json', 'w', encoding='utf-8') as json_file:
             json.dump(result, json_file, ensure_ascii=False, indent=4)
 
-    def test_read_json_files_with_aggregation(self):
-        json_input = "C:\\Users\\spoch\\repos\\aggregator_for_adverts\\zillion_aggregator\\aggregation_by_description.json"
-        response = self.client.post(reverse('zillion_aggregator:read_json'), {'files': json_input})
-        self.assertEqual(response.status_code, 200)
-        result = json.loads(response.content, encoding='utf-8')
-        with open('records_by_description.json', 'w', encoding='utf-8') as json_file:
-            json.dump(result, json_file, ensure_ascii=False, indent=4)
+    # def test_read_json_files_with_aggregation(self):
+    #     json_input = "C:\\Users\\spoch\\repos\\aggregator_for_adverts\\zillion_aggregator\\aggregation_by_description.json"
+    #     response = self.client.post(reverse('zillion_aggregator:read_json'), {'files': json_input})
+    #     self.assertEqual(response.status_code, 200)
+    #     result = json.loads(response.content, encoding='utf-8')
+    #     with open('records_by_description.json', 'w', encoding='utf-8') as json_file:
+    #         json.dump(result, json_file, ensure_ascii=False, indent=4)
