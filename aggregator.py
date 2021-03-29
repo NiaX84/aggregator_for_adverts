@@ -99,8 +99,13 @@ class Aggregator:
 
     @classmethod
     def collect_records(cls, data_record):
+        new_data_record = []
         for entry in data_record:
             address_spec = cls.get_address_specification(entry)
+            if address_spec is None:
+                continue
+            if entry.get("description", None) is None:
+                continue
             entry.update(address_spec)
             if 'properties' in entry:
                 properties = entry['properties']
@@ -108,17 +113,17 @@ class Aggregator:
                 properties_data = [data for data in properties if data['name']]
                 entry.update(Aggregator.get_property_values(properties_data))
             entry_keys = {key for key in entry}
-            if 'condition' not in entry_keys and 'description' in entry_keys:
-                entry['condition'] = cls.get_state_of_property(entry['description'])
-                entry_keys.add('condition')
+            if 'condition' not in entry_keys:
+                continue
             if 'floorArea' not in entry_keys:
-                entry['floorArea'] = cls.get_area(entry['description'])
-                entry_keys.add('floorArea')
+                continue
             entry['condition'] = mappings.stav[entry['condition'].strip()]
             entry['type'] = mappings.property_type[entry['type']]
             entry.update({key: 'default' for key in cls.all_record_keys - entry_keys})
 
-        return data_record
+            new_data_record.append(entry)
+
+        return new_data_record
 
     @classmethod
     def get_property_values(cls, properties_data):
@@ -137,10 +142,9 @@ class Aggregator:
         try:
             address = entry['address']
             if not address:
-                address_tmp = [value for _, value in entry['sellerAddress'].items() if value]
-                address = ', '.join(address_tmp) if address_tmp else 'Slovensko'
-            if address == 'Zahraničie':
-                address = 'Slovensko'
+                return None
+            if address == 'Zahraničie' or address == 'Slovensko':
+                return None
             if any(word in cls.unwanted_words for word in address.split()):
                 address = address.replace(' - ', '-') \
                     .replace("Štát: ", ":") \
@@ -153,11 +157,7 @@ class Aggregator:
                 address = address.replace('(', ', ').replace(')', '')
             return cls.get_position_for(address.lower())
         except KeyError:
-            try:
-                address = entry['city']
-                return cls.get_position_for(address.lower())
-            except KeyError:
-                return cls.get_position_for('slovensko')
+            return None
 
     @classmethod
     @lru_cache(maxsize=128)
